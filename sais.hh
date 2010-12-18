@@ -85,8 +85,6 @@ public:
 
   void construct() {
     impl<unsigned char>(source, source+strlen((const char*)source)+1);
-
-    //impl1(source, source+strlen((const char*)source)+1);
   }
 
 private:
@@ -96,23 +94,18 @@ private:
 private:
   template <typename T>
   void impl(const T* beg, const T* end) {
-    std::cerr << "# 1" << std::endl;
     flags types(end-beg, 0);
-    std::cerr << "# 2" << std::endl;
     classify(beg, types);
     lms_ary_t lms_ary;
-    std::cerr << "# 3" << std::endl;
     calc_lms_ary(types, lms_ary);
-    std::cerr << "# 4" << std::endl;
     Buckets2<T> bkt(beg,end);// XXX:
-    std::cerr << "# 5" << std::endl;
     induce(beg, types, lms_ary, bkt);
 
     std::vector<unsigned> s1(types.size()/2+1,(unsigned)-1);
     const bool uniq = reduceT(beg, types, bkt, lms_ary.size(), s1);
-    std::cerr << "# 6" << std::endl;
     if(uniq) {
-      for(int i=0; i < types.size(); i++) std::cout << bkt.buf[i] << " "; std::cout << std::endl;
+      //for(int i=0; i < types.size(); i++) std::cout << bkt.buf[i] << " "; std::cout << std::endl;
+      std::cout << "DONE" << std::endl;
       return;
     } else {
       impl<unsigned>(s1.data(), s1.data()+s1.size()); // XXX:
@@ -175,7 +168,7 @@ private:
     }
 
     std::cerr << "order: " << order << "#" << lms_cnt << std::endl;
-    if(order < lms_cnt) {
+    if(order+1 < lms_cnt) {
       s1.erase(std::remove(s1.begin(), s1.end(), -1),s1.end());
       return false;
     }
