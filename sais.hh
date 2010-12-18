@@ -4,7 +4,8 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
-
+#include <cstdio>
+#include <string>
 typedef std::vector<bool> flags;
 
 struct Index {
@@ -20,8 +21,8 @@ struct Index {
 };
 
 template <typename T>
-struct Buckets2 {
-  Buckets2(const T* beg, const T* end) : buf(NULL) {
+struct Buckets {
+  Buckets(const T* beg, const T* end) : buf(NULL) {
     unsigned limit = *std::max_element(beg, end)+1;
     idx.resize(limit+1);
     std::vector<unsigned> freq(limit, 0);
@@ -41,7 +42,7 @@ struct Buckets2 {
     memset(buf,0xFF,size*sizeof(unsigned));
   }
 
-  ~Buckets2() {
+  ~Buckets() {
     delete [] buf;
   }
 
@@ -81,43 +82,52 @@ class SA_IS {
 public:
   SA_IS(const char* text) : source((const unsigned char*)text) {
         
-  }
+  }    
 
   void construct() {
-    impl<unsigned char>(source, source+strlen((const char*)source)+1);
+    Buckets<unsigned char> bkt(source, source+strlen((const char*)source)+1);
+    impl<unsigned char>(source, source+strlen((const char*)source)+1, bkt);
+    
+    std::string s((const char*) source);
+    for(int i=0; i < bkt.size-1; i++) {
+      if(strcmp(((const char*) source)+bkt.buf[i], ((const char*) source)+bkt.buf[i+1]) >= 0) {
+        std::cerr << i << "# not ordered!" << std::endl;
+        std::cerr << s.substr(bkt.buf[i], 10) << std::endl;
+        std::cerr << s.substr(bkt.buf[i+1], 10) << std::endl;
+      }
+    }
   }
 
 private:
   const unsigned char* source;
     
-    
 private:
   template <typename T>
-  void impl(const T* beg, const T* end) {
+  void impl(const T* beg, const T* end, Buckets<T>& bkt) {
     flags types(end-beg, 0);
     classify(beg, types);
     lms_ary_t lms_ary;
     calc_lms_ary(types, lms_ary);
-    Buckets2<T> bkt(beg,end);// XXX:
     induce(beg, types, lms_ary, bkt);
 
     std::vector<unsigned> s1(types.size()/2+1,(unsigned)-1);
-    const bool uniq = reduceT(beg, types, bkt, lms_ary.size(), s1);
+    const bool uniq = reduce(beg, types, bkt, lms_ary.size(), s1);
     if(uniq) {
       //for(int i=0; i < types.size(); i++) std::cout << bkt.buf[i] << " "; std::cout << std::endl;
       std::cout << "DONE" << std::endl;
       return;
     } else {
-      impl<unsigned>(s1.data(), s1.data()+s1.size()); // XXX:
+      Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size());
+      impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX:
       for(std::size_t i = s1.size()-1; i != (std::size_t)-1; i--) 
-        s1[i] = lms_ary[s1[i]];
+        s1[i] = lms_ary[bkt2.buf[i]];
       bkt.init();
       induce(beg, types, s1, bkt);
     }
   }
 
   template <typename T>
-  void classify(const T src, flags& types) {
+  void classify(const T* src, flags& types) {
     for(int i=(int)types.size()-2; i >= 0; i--) {
       if (src[i] < src[i+1])      ;
       else if (src[i] > src[i+1]) types[i] = 1;
@@ -125,12 +135,12 @@ private:
     }
   } 
 
-  template <typename T, typename B>
-  void induce(const T src, const flags& types, const lms_ary_t& lms_ary, Buckets2<B>& bkt) {
+  template <typename T>
+  void induce(const T* src, const flags& types, const lms_ary_t& lms_ary, Buckets<T>& bkt) {
     const unsigned len = (const unsigned)types.size();
     
     // TODO: 逆順
-    for(std::size_t i=0; i < lms_ary.size(); i++)
+    for(std::size_t i=lms_ary.size()-1; i != (std::size_t)-1; i--)
       bkt.putS(src[lms_ary[i]], lms_ary[i]);
 
     for(unsigned i=0; i < len; i++) {
@@ -148,8 +158,8 @@ private:
     }
   }
 
-  template <typename T, typename B>
-  bool reduceT(const T src, const flags& types, const Buckets2<B>& bkt, unsigned lms_cnt, std::vector<unsigned>& s1) {
+  template <typename T>
+  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, unsigned lms_cnt, std::vector<unsigned>& s1) {
     const unsigned* sa = bkt.buf;
     const unsigned len = bkt.size;
 
@@ -160,8 +170,10 @@ private:
     for(unsigned i=1; i < len; i++) {
       const unsigned pos = sa[i];
       if(pos != 0 && isLMS(pos, types)) {
-        if(lms_eqlT(src, types, prev, pos)==false)
+        if(lms_eql(src, types, prev, pos)==false)
           order++;
+        if(s1[pos/2] != (unsigned)-1)
+          std::cerr << "!!!: " << s1[pos] << std::endl;
         s1[pos/2] = order;
         prev = pos;
       }
@@ -169,14 +181,20 @@ private:
 
     std::cerr << "order: " << order << "#" << lms_cnt << std::endl;
     if(order+1 < lms_cnt) {
-      s1.erase(std::remove(s1.begin(), s1.end(), -1),s1.end());
+      s1.erase(std::remove(s1.begin(), s1.end(), -1), s1.end());
+      if(false) {
+        for(int i=0; i < s1.size(); i++)
+          std::cerr << "s1[" << i << "]: " << s1[i] << std::endl;
+      }
+
       return false;
     }
+
     return true;
   }
 
   template <typename T>
-  bool lms_eqlT(const T src, const flags& types, unsigned i1, unsigned i2) const {
+  bool lms_eql(const T* src, const flags& types, unsigned i1, unsigned i2) const {
     if(src[i1] != src[i2])
       return false;
     if(types[i1] != types[i2])
