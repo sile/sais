@@ -87,23 +87,6 @@ public:
   void construct() {
     Buckets<unsigned char> bkt(source, source+strlen((const char*)source)+1);
     impl<unsigned char>(source, source+strlen((const char*)source)+1, bkt);
-    
-    /*
-    std::string s((const char*) source);
-    for(int i=0; i < bkt.size-1; i++) {
-      if(strcmp(((const char*) source)+bkt.buf[i], ((const char*) source)+bkt.buf[i+1]) >= 0) {
-        std::cerr << i << "# not ordered!" << std::endl;
-
-        unsigned match_len = 0;
-        for(;; match_len++) {
-          if(s[bkt.buf[i]+match_len] != s[bkt.buf[i+1]+match_len])
-            break;
-        }
-        std::cerr << s.substr(bkt.buf[i], match_len+10) << std::endl;
-        std::cerr << s.substr(bkt.buf[i+1], match_len+10) << std::endl;
-      }
-    }
-    */
   }
 
 private:
@@ -140,99 +123,20 @@ private:
     std::vector<unsigned> s1(types.size()/2+1,(unsigned)-1);
     const bool uniq = reduce(beg, types, bkt, lms_ary.size(), s1);
     if(uniq) {
+      std::vector<unsigned> s2(s1.size()); // XXX: inplaceで可能
       for(std::size_t i = 0; i < s1.size(); i++)
-        s1[i] = lms_ary[s1[i]];
+          s2[s1[i]] = lms_ary[i];
+      
       bkt.init();
-      induce(beg, types, s1, bkt, true);
-
-      // 
-      //Cmp<T> cmp(beg);
-      //std::sort(bkt.buf, bkt.buf+bkt.size, cmp);
-
-      std::cerr << "CHECK[" << end-beg << "]" << std::endl;
-
-      for(int i=0; i < bkt.size-1; i++) {
-        const T* a = beg+bkt.buf[i];
-        const T* b = beg+bkt.buf[i+1];
-        for(;;a++, b++) {
-          if(*a < *b)
-            break;
-          if(*a > *b) {
-            std::cerr << i << "# not ordered!: "
-                      << std::endl;
-            if((end-beg) < 100) {
-              std::cerr << "I :";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", j);
-              std::cerr << std::endl;
-
-              std::cerr << "S :";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", beg[j]);
-              std::cerr << std::endl;
-              
-              std::cerr << "SA:";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", bkt.buf[j]);
-              std::cerr << std::endl;
-            }
-            break;
-          }
-        }
-      } 
-      
-      /*
-      std::cerr << "S1: ";
-      for(int i=0; i < s1.size(); i++)
-        printf("%02d ", s1[i]);
-      std::cerr << std::endl;
-      */
-      
-      std::cerr << "DONE" << std::endl;
-      return;
+      induce(beg, types, s2, bkt);
     } else {
       Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size());
       impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX:
 
-      // check
-      /*
-      std::cerr << "CHECK[" << end-beg << "]" << std::endl;
-      for(int i=0; i < bkt.size-1; i++) {
-        const T* a = beg+bkt.buf[i];
-        const T* b = beg+bkt.buf[i+1];
-        for(;;a++, b++) {
-          if(*a < *b)
-            break;
-          if(*a > *b) {
-            if((end-beg) < 100) {
-              std::cerr << i << "# not ordered!" << std::endl;
-              
-              std::cerr << "I :";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", j);
-              std::cerr << std::endl;
-
-              std::cerr << "S :";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", beg[j]);
-              std::cerr << std::endl;
-              
-              std::cerr << "SA:";
-              for(int j=0; j < bkt.size; j++)
-                printf("%02d ", bkt.buf[j]);
-              std::cerr << std::endl;
-            }
-            break;
-          }
-        }
-      } 
-      */  
-      //
-
       for(std::size_t i = 0; i < s1.size(); i++)
         s1[i] = lms_ary[bkt2.buf[i]];
       bkt.init();
-      induce(beg, types, s1, bkt);
+      induce(beg, types, s1, bkt, false);
     }
   }
 
@@ -246,14 +150,10 @@ private:
   } 
 
   template <typename T>
-  void induce(const T* src, const flags& types, const lms_ary_t& lms_ary, Buckets<T>& bkt, bool o=false) {
+  void induce(const T* src, const flags& types, const lms_ary_t& lms_ary, Buckets<T>& bkt) {
     const unsigned len = (const unsigned)types.size();
     
-    if(o) 
-      for(std::size_t i=0; i < lms_ary.size(); i++)
-        bkt.putS(src[lms_ary[i]], lms_ary[i]);
-    else
-      for(std::size_t i=lms_ary.size()-1; i != (std::size_t)-1; i--)
+    for(std::size_t i=lms_ary.size()-1; i != (std::size_t)-1; i--)
         bkt.putS(src[lms_ary[i]], lms_ary[i]);
 
     for(unsigned i=0; i < len; i++) {
