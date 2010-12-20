@@ -4,20 +4,40 @@
 #include <vector>
 #include <cstring>
 #include <algorithm>
-#include <cstdio>
-#include <string>
+
 typedef std::vector<bool> flags;
 
-struct Index {
-  void set(unsigned start, unsigned s_cur) {
-    this->start = start;
-    this->l_cur = start;
-    this->s_cur = s_cur;
-  }
+class BucketIndex {
+public:
+    BucketIndex(unsigned start, unsigned last) 
+        : start(start), l_cur(start), last(last), s_cur(last) {}
+
+    void reset_Spos() {
+        s_cur = last;
+    }
+
+    void reset() {
+        l_cur = start;
+        s_cur = last;
+    }
     
-  unsigned start;
-  unsigned l_cur;
-  unsigned s_cur;
+    unsigned next_Spos() { return s_cur--; }
+    unsigned next_Lpos() { return l_cur++; }
+    
+private:
+    unsigned start;
+    unsigned l_cur;
+    unsigned s_cur;
+    unsigned last;
+};
+
+template <typename T>
+class Buckets {
+public:
+
+private:
+    std::vector<Index> idx; 
+    std::vecotr<unsigned> buf; // 
 };
 
 template <typename T>
