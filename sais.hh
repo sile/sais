@@ -36,7 +36,7 @@ private:
 
 template <typename T>
 struct Buckets {
-  Buckets(const T* beg, const T* end) {
+  Buckets(const T* beg, const T* end, unsigned* src_buf) : buf(src_buf) {
     unsigned limit = *std::max_element(beg, end)+1;
     idx.resize(limit);
     std::vector<unsigned> freq(limit, 0);
@@ -50,9 +50,10 @@ struct Buckets {
       offset += freq[i];
     }
         
-    buf.resize(end-beg, (unsigned)-1);
+    size = end-beg;
+    memset(buf, 0xFF, size*sizeof(unsigned));
   }
-
+  
   void initS() {
     for(unsigned i=0; i < idx.size(); i++)
       idx[i].reset_Spos();
@@ -61,7 +62,7 @@ struct Buckets {
   void init() {
     for(unsigned i=0; i < idx.size(); i++) 
       idx[i].reset();
-    std::fill(buf.begin(), buf.end(), (unsigned)-1);
+    memset(buf, 0xFF, size*sizeof(unsigned));
   }
 
   void putL(T c, unsigned pos) {
@@ -79,7 +80,8 @@ struct Buckets {
 
 public:
   std::vector<BucketIndex> idx;
-  std::vector<unsigned> buf;
+  unsigned* buf;
+  unsigned size;
 };
 
 typedef std::vector<unsigned> lms_ary_t;
@@ -92,12 +94,15 @@ private:
 public:
   SA_IS(const char* str) 
     : m_str((const unsigned char*)str),
-      m_bkt(m_str, m_str+strlen(str)+1)
+      m_bkt(m_str, m_str+strlen(str)+1, new unsigned[strlen(str)+1]) // TODO: delete
   {}
 
   void construct() {
-    impl<unsigned char>(m_str, m_str+m_bkt.buf.size(), m_bkt);
+    impl<unsigned char>(m_str, m_str+m_bkt.size, m_bkt);
   }
+
+  const unsigned* sa() const { return m_bkt.buf+1; }
+  const unsigned size() const { return m_bkt.size-1; }
 
 private:
   template <typename T>
@@ -111,21 +116,20 @@ private:
     std::vector<unsigned> s1(types.size()/2+1,(unsigned)-1);
     const bool uniq = reduce(beg, types, bkt, lms_ary.size(), s1);
     if(uniq) {
-      std::vector<unsigned> s2(s1.size()); // XXX: inplaceで可能
       for(std::size_t i = 0; i < s1.size(); i++)
-          s2[s1[i]] = lms_ary[i];
-      
-      bkt.init();
-      induce(beg, types, s2, bkt);
+        bkt.buf[s1[i]] = lms_ary[i];
+
+      for(std::size_t i = 0; i < s1.size(); i++)
+        s1[i] = bkt.buf[i];
     } else {
-      Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size()); // bktとメモリ領域は共有可能
-      impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX:
+      Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size(), bkt.buf);
+      impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX: .data()はgcc依存
 
       for(std::size_t i = 0; i < s1.size(); i++)
         s1[i] = lms_ary[bkt2.buf[i]];
-      bkt.init();
-      induce(beg, types, s1, bkt);
     }
+    bkt.init();
+    induce(beg, types, s1, bkt);
   }
 
   template <typename T>
@@ -138,12 +142,10 @@ private:
 
   template <typename T>
   void induce(const T* src, const flags& types, const lms_ary_t& lms_ary, Buckets<T>& bkt) {
-    const unsigned len = (const unsigned)types.size();
-    
     for(std::size_t i=lms_ary.size()-1; i != (std::size_t)-1; i--)
-        bkt.putS(src[lms_ary[i]], lms_ary[i]);
+      bkt.putS(src[lms_ary[i]], lms_ary[i]);
 
-    for(unsigned i=0; i < len; i++) {
+    for(unsigned i=0; i < types.size(); i++) {
       const int pos = bkt.position(i)-1;
       if(pos >= 0 && types[pos]==1) 
         bkt.putL(src[pos], pos);
@@ -151,17 +153,18 @@ private:
 
     bkt.initS();
         
-    for(unsigned i=len-1; i > 0; i--) {
+    for(unsigned i=types.size()-1; i > 0; i--) {
       const int pos = bkt.position(i)-1;
       if(pos >= 0 && types[pos]==0) 
         bkt.putS(src[pos], pos);
     }
   }
 
+
   template <typename T>
   bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, unsigned lms_cnt, std::vector<unsigned>& s1) {
-    const std::vector<unsigned>& sa = bkt.buf;
-    const unsigned len = sa.size();
+    const unsigned* sa = bkt.buf;
+    const unsigned len = bkt.size;
 
     unsigned order = 0;
     s1[sa[0]/2] = order;
