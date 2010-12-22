@@ -99,36 +99,36 @@ private:
     classify(beg, types);
     induce(beg, types, bkt);
 
-    std::vector<unsigned> s1(types.size()/2,(unsigned)-1);
-    std::cerr << "before> " << s1.size() << std::endl;
-    const bool uniq = reduce(beg, types, bkt, s1);
-    std::cerr << "after> " << s1.size() << std::endl;
-    std::cerr << std::endl;
+    unsigned *s1;
+    unsigned s1_len;
+    const bool uniq = reduce(beg, types, bkt, s1, s1_len);
     if(uniq) {
         for(std::size_t i = 1, j=0; i < len; i++)
-            if(isLMS(i,types)) {
-                bkt.buf[s1[j]] = i;
-                j++;
-            }
-
-      for(std::size_t i = 0; i < s1.size(); i++)
-        s1[i] = bkt.buf[i];
+            if(isLMS(i,types))
+                bkt.buf[s1[j++]] = i;
+        
+        // XXX:
+        for(std::size_t i = 0; i < s1_len; i++)
+            s1[i] = bkt.buf[i];
     } else {
-      Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size(), bkt.buf);
-      impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX: .data()はgcc依存
+        Buckets<unsigned> bkt2(s1, s1+s1_len, bkt.buf);
+        impl<unsigned>(s1, s1+s1_len, bkt2);
 
-      unsigned* buf2 = bkt.buf+s1.size();
-      for(std::size_t i = 0; i < s1.size(); i++)
-          buf2[bkt2.buf[i]] = i;
-      
-      for(std::size_t i = 1, j=0; i < len; i++)
-          if(isLMS(i,types)) {
-              s1[buf2[j]] = i;
-              j++;
-          }
+        unsigned* buf2 = s1; // == bkt.buf + bkt.size/2;
+        for(std::size_t i = 0; i < s1_len; i++)
+            buf2[bkt2.buf[i]] = i;
+        
+        unsigned* tmp = bkt2.buf;
+        unsigned j=0;
+        for(std::size_t i = 1; i < len; i++)
+            if(isLMS(i,types))
+                tmp[buf2[j++]] = i;
+        memcpy(s1,tmp,j*sizeof(unsigned));
     }
-    bkt.init();
-    induce(beg, types, s1, bkt);
+    
+    // NOTE: この時点でbkt.bufの半分の領域は使われている
+    bkt.init(); // XXX: initをここでしてはダメ: s1の中身も消えてしまう
+    induce(beg, types, s1, s1_len, bkt);
   }
 
   template <typename T>
@@ -140,8 +140,9 @@ private:
   } 
 
   template <typename T>
-  void induce(const T* src, const flags& types, const lms_ary_t& lms_ary, Buckets<T>& bkt) {
-    for(std::size_t i=lms_ary.size()-1; i != (std::size_t)-1; i--)
+  void induce(const T* src, const flags& types, const unsigned* lms_ary, unsigned lms_len, Buckets<T>& bkt) {
+      // NOTE: s1をbkt.bufの前半分に詰めていれば、この方法でもおそらく大丈夫
+    for(std::size_t i=lms_len-1; i != (std::size_t)-1; i--)
       bkt.putS(src[lms_ary[i]], lms_ary[i]);
 
     for(unsigned i=0; i < types.size(); i++) {
@@ -181,31 +182,38 @@ private:
     }
   }
 
-
   template <typename T>
-  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, std::vector<unsigned>& s1) {
-    const unsigned* sa = bkt.buf;
-    const unsigned len = bkt.size;
-
-    bool uniq=true;
-    unsigned order = 0;
-    s1[(sa[0]-1)/2] = order;
-
-    unsigned prev = sa[0];
-    for(unsigned i=1; i < len; i++) {
-      const unsigned pos = sa[i];
-      if(pos != 0 && isLMS(pos, types)) {
-        if(lms_eql(src, types, prev, pos)==false)
-          order++;
-        else
-            uniq=false;
-        s1[(pos-1)/2] = order;
-        prev = pos;
+  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, 
+              unsigned *& s1, unsigned& s1_len) {
+      unsigned *sa = bkt.buf;
+      s1 = bkt.buf + bkt.size/2;
+      s1_len = bkt.size/2;
+      
+      for(unsigned i=1; i < bkt.size; i++)
+          if(isLMS(i, types))
+              sa[(i-1)%2] = bkt.buf[i];
+      memset(s1,0xFF,s1_len*sizeof(unsigned));
+      
+      bool uniq=true;
+      unsigned order = 0;
+      
+      s1[(sa[0]-1)/2] = order;
+      
+      unsigned prev = sa[0];
+      for(unsigned i=1; i < bkt.size; i++) {
+          const unsigned pos = sa[i];
+          if(pos != 0 && isLMS(pos, types)) {
+              if(lms_eql(src, types, prev, pos)==false)
+                  order++;
+              else
+                  uniq=false;
+              s1[(pos-1)/2] = order;
+              prev = pos;
+          }
       }
-    }
 
-    s1.erase(std::remove(s1.begin(), s1.end(), -1), s1.end());
-    return uniq;
+      s1_len = std::remove(s1, s1+s1_len, -1) - s1;
+      return uniq;
   }
 
   template <typename T>
