@@ -31,7 +31,6 @@ int main(int argc, char** argv) {
 
   for(unsigned i=0; i < sais.size(); i++)
     std::cout << sais.sa()[i] << std::endl;
-
   return 0;
 }
 
