@@ -94,17 +94,22 @@ public:
 private:
   template <typename T>
   void impl(const T* beg, const T* end, Buckets<T>& bkt) {
+      const unsigned len = end-beg;
     flags types(end-beg, 0);
-    lms_ary_t lms_ary;
     classify(beg, types);
-    calc_lms_ary(types, lms_ary);
-    induce(beg, types, lms_ary, bkt);
+    induce(beg, types, bkt);
 
-    std::vector<unsigned> s1(types.size()/2+1,(unsigned)-1);
-    const bool uniq = reduce(beg, types, bkt, lms_ary.size(), s1);
+    std::vector<unsigned> s1(types.size()/2,(unsigned)-1);
+    std::cerr << "before> " << s1.size() << std::endl;
+    const bool uniq = reduce(beg, types, bkt, s1);
+    std::cerr << "after> " << s1.size() << std::endl;
+    std::cerr << std::endl;
     if(uniq) {
-      for(std::size_t i = 0; i < s1.size(); i++)
-        bkt.buf[s1[i]] = lms_ary[i];
+        for(std::size_t i = 1, j=0; i < len; i++)
+            if(isLMS(i,types)) {
+                bkt.buf[s1[j]] = i;
+                j++;
+            }
 
       for(std::size_t i = 0; i < s1.size(); i++)
         s1[i] = bkt.buf[i];
@@ -112,8 +117,15 @@ private:
       Buckets<unsigned> bkt2(s1.data(), s1.data()+s1.size(), bkt.buf);
       impl<unsigned>(s1.data(), s1.data()+s1.size(), bkt2); // XXX: .data()はgcc依存
 
+      unsigned* buf2 = bkt.buf+s1.size();
       for(std::size_t i = 0; i < s1.size(); i++)
-        s1[i] = lms_ary[bkt2.buf[i]];
+          buf2[bkt2.buf[i]] = i;
+      
+      for(std::size_t i = 1, j=0; i < len; i++)
+          if(isLMS(i,types)) {
+              s1[buf2[j]] = i;
+              j++;
+          }
     }
     bkt.init();
     induce(beg, types, s1, bkt);
@@ -147,14 +159,37 @@ private:
     }
   }
 
+  template <typename T>
+  void induce(const T* src, const flags& types, Buckets<T>& bkt) {
+      for(unsigned i=1; i < types.size(); i++)
+          if(isLMS(i,types)) {
+              bkt.putS(src[i], i);
+          }
+
+    for(unsigned i=0; i < types.size(); i++) {
+      const int pos = bkt.position(i)-1;
+      if(pos >= 0 && types[pos]==1) 
+        bkt.putL(src[pos], pos);
+    }
+
+    bkt.initS();
+        
+    for(unsigned i=types.size()-1; i > 0; i--) {
+      const int pos = bkt.position(i)-1;
+      if(pos >= 0 && types[pos]==0) 
+        bkt.putS(src[pos], pos);
+    }
+  }
+
 
   template <typename T>
-  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, unsigned lms_cnt, std::vector<unsigned>& s1) {
+  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, std::vector<unsigned>& s1) {
     const unsigned* sa = bkt.buf;
     const unsigned len = bkt.size;
 
+    bool uniq=true;
     unsigned order = 0;
-    s1[sa[0]/2] = order;
+    s1[(sa[0]-1)/2] = order;
 
     unsigned prev = sa[0];
     for(unsigned i=1; i < len; i++) {
@@ -162,13 +197,15 @@ private:
       if(pos != 0 && isLMS(pos, types)) {
         if(lms_eql(src, types, prev, pos)==false)
           order++;
-        s1[pos/2] = order;
+        else
+            uniq=false;
+        s1[(pos-1)/2] = order;
         prev = pos;
       }
     }
 
     s1.erase(std::remove(s1.begin(), s1.end(), -1), s1.end());
-    return order==lms_cnt-1;
+    return uniq;
   }
 
   template <typename T>

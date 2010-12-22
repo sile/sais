@@ -14,10 +14,8 @@ int main(int argc, char** argv) {
         int* SA = new int[m.size+1];
         SA_IS((unsigned char*)m.ptr, SA, m.size+1, 0x100, sizeof(char));
 
-        /*
         for(unsigned i=0; i < m.size; i++)
           std::cout << SA[i+1] << std::endl;
-        */
     }
     return 0;
 }
