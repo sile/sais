@@ -49,17 +49,8 @@ struct Buckets {
       idx[i].set(idx[i].start, idx[i+1].start-1);
   }
 
-  void putL(T c, unsigned pos) {
-    buf[idx[c].l_cur++] = pos;
-  }
-
-  void putS(T c, unsigned pos) {
-    buf[idx[c].s_cur--] = pos;
-  }
-    
-  int position(unsigned i) const {
-    return (int)buf[i];
-  }
+  void putL(T c, unsigned pos) { buf[idx[c].l_cur++] = pos; }
+  void putS(T c, unsigned pos) { buf[idx[c].s_cur--] = pos; }
 
 public:
   std::vector<BucketIndex> idx;
@@ -77,7 +68,7 @@ private:
 public:
   SA_IS(const char* str) 
     : m_str((const unsigned char*)str),
-      m_bkt(m_str, m_str+strlen(str)+1, new unsigned[strlen(str)+1]) // TODO: delete
+      m_bkt(m_str, m_str+strlen(str)+1, new unsigned[strlen(str)+1]) 
   {
     impl<unsigned char>(m_str, m_str+m_bkt.size, m_bkt);
   }
@@ -148,7 +139,7 @@ private:
   template <typename T>
   void induceLS(const T* src, const flags& types, Buckets<T>& bkt) {
     for(unsigned i=0; i < types.size(); i++) {
-      const int pos = bkt.position(i)-1;
+      const int pos = (int)bkt.buf[i]-1;
       if(pos >= 0 && types[pos]==1) 
         bkt.putL(src[pos], pos);
     }
@@ -156,15 +147,14 @@ private:
     bkt.initS();
         
     for(unsigned i=types.size()-1; i > 0; i--) {
-      const int pos = bkt.position(i)-1;
+      const int pos = (int)bkt.buf[i]-1;
       if(pos >= 0 && types[pos]==0) 
         bkt.putS(src[pos], pos);
     }
   }
 
   template <typename T>
-  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, 
-              unsigned *& s1, unsigned& s1_len) {
+  bool reduce(const T* src, const flags& types, const Buckets<T>& bkt, unsigned *& s1, unsigned& s1_len) {
     unsigned *sa = bkt.buf;
     s1 = bkt.buf + bkt.size/2;
     s1_len = bkt.size - bkt.size/2;
@@ -177,34 +167,19 @@ private:
     memset(s1,0xFF,s1_len*sizeof(unsigned));
 
     unsigned order = 0;
-      
     s1[(sa[0]-1)/2] = order;
-      
-    unsigned prev = sa[0];
-    for(unsigned i=1; i < sa_len; i++) {
-      const unsigned pos = sa[i];
-
-      if(lms_eql(src, types, prev, pos)==false)
-        order++;
-      s1[(pos-1)/2] = order;
-      prev = pos;
-    }
+    for(unsigned i=1; i < sa_len; i++)
+      s1[(sa[i]-1)/2] = lms_eql(src,types,sa[i-1],sa[i]) ? order : ++order;
 
     s1_len = std::remove(s1, s1+s1_len, -1) - s1;
-
     return order+1 == s1_len;
   }
 
   template <typename T>
   bool lms_eql(const T* src, const flags& types, unsigned i1, unsigned i2) const {
-    if(src[i1] != src[i2])     return false;
-    if(types[i1] != types[i2]) return false;
-    
-    for(i1++,i2++;; i1++, i2++) {
-      if(src[i1] != src[i2])                 return false;
-      if(types[i1] != types[i2])             return false;
-      if(isLMS(i1,types) && isLMS(i2,types)) return true;
-    }
+    for(;; i1++,i2++) 
+      if(src[i1] != src[i2] || types[i1] != types[i2]) return false;
+      else if(isLMS(i1+1,types) && isLMS(i2+1,types))  return src[i1+1] == src[i2+1];
   }
 
   bool isLMS(unsigned i, const flags& types) const {
