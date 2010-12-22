@@ -28,10 +28,11 @@ int main(int argc, char** argv) {
   
   const char* text = fd.data;
   SA_IS sais(text);
-  sais.construct();
 
+  /*
   for(unsigned i=0; i < sais.size(); i++)
     std::cout << sais.sa()[i] << std::endl;
+  */
 
   return 0;
 }

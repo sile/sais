@@ -7,27 +7,12 @@
 
 typedef std::vector<bool> flags;
 
-class BucketIndex {
-public:
-    BucketIndex(unsigned start, unsigned last) 
-      : start(start), l_cur(start), last(last), s_cur(last) {}
-  
-  BucketIndex() {}
-
-
-    void reset_Spos() {
-        s_cur = last;
+struct BucketIndex {
+    void set(unsigned start, unsigned last) {
+        this->start = l_cur = start;
+        this->last  = s_cur = last;
     }
 
-    void reset() {
-        l_cur = start;
-        s_cur = last;
-    }
-    
-    unsigned next_Spos() { return s_cur--; }
-    unsigned next_Lpos() { return l_cur++; }
-    
-private:
     unsigned start;
     unsigned l_cur;
     unsigned s_cur;
@@ -46,7 +31,7 @@ struct Buckets {
 
     unsigned offset=0;
     for(unsigned i=0; i < idx.size(); i++) {
-      idx[i] = BucketIndex(offset, offset+freq[i]-1);
+        idx[i].set(offset, offset+freq[i]-1);
       offset += freq[i];
     }
         
@@ -56,21 +41,21 @@ struct Buckets {
   
   void initS() {
     for(unsigned i=0; i < idx.size(); i++)
-      idx[i].reset_Spos();
+        idx[i].s_cur = idx[i].last;
   }
 
   void init() {
-    for(unsigned i=0; i < idx.size(); i++) 
-      idx[i].reset();
-    memset(buf, 0xFF, size*sizeof(unsigned));
+      for(unsigned i=0; i < idx.size(); i++) 
+          idx[i].set(idx[i].start, idx[i].last);
+      memset(buf, 0xFF, size*sizeof(unsigned));
   }
 
   void putL(T c, unsigned pos) {
-    buf[idx[c].next_Lpos()] = pos;
+    buf[idx[c].l_cur++] = pos;
   }
 
   void putS(T c, unsigned pos) {
-    buf[idx[c].next_Spos()] = pos;
+    buf[idx[c].s_cur--] = pos;
   }
     
   // XXX:
@@ -95,11 +80,13 @@ public:
   SA_IS(const char* str) 
     : m_str((const unsigned char*)str),
       m_bkt(m_str, m_str+strlen(str)+1, new unsigned[strlen(str)+1]) // TODO: delete
-  {}
-
-  void construct() {
-    impl<unsigned char>(m_str, m_str+m_bkt.size, m_bkt);
+  {
+      impl<unsigned char>(m_str, m_str+m_bkt.size, m_bkt);
   }
+
+    ~SA_IS() {
+        delete [] m_bkt.buf;
+    }
 
   const unsigned* sa() const { return m_bkt.buf+1; }
   const unsigned size() const { return m_bkt.size-1; }
@@ -189,10 +176,11 @@ private:
     if(src[i1] != src[i2])     return false;
     if(types[i1] != types[i2]) return false;
     
-    for(i1++,i2++;; i1++, i2++)
+    for(i1++,i2++;; i1++, i2++) {
       if(src[i1] != src[i2])                 return false;
       if(types[i1] != types[i2])             return false;
       if(isLMS(i1,types) && isLMS(i2,types)) return true;
+    }
   }
   
   void calc_lms_ary(const flags& types, std::vector<unsigned>& lms_ary) {
