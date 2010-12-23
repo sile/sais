@@ -1,0 +1,13 @@
+[概要]
+・ Induced-Sortingを用いたSuffixArray構築アルゴリズムの実装
+
+[バージョン]
+・ 0.0.1
+
+[使い方]
+・ sais.cc を参照
+
+[参考]
+・ 『Linear Suffix Array Construction by Almost Pure Induced-Sorting』
+・ 『Two Efficient Algorithms for Linear Suffix Array Construction』
+・ http://d.hatena.ne.jp/sile/20101213/1292190698
