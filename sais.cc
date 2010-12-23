@@ -1,38 +1,30 @@
 #include <iostream>
-
 #include "sais.hh"
-#include "mmap_t.hh"
-#include <cstring>
-
-class filedata {
-public:
-  filedata(const char* filepath) : data(NULL){
-    MPHF::mmap_t m(filepath);
-    if(m) {
-      data = new char[m.size+1];
-      memcpy(data, m.ptr, m.size);
-      data[m.size] = 0;
-    }
-  }
-
-  ~filedata() {
-    delete [] data;
-  }
-  
-  char* data;
-};
+#include "util.hh"
 
 int main(int argc, char** argv) {
-  filedata fd(argv[1]);
-  //std::cerr << "input size: " << m.size << std::endl;
+  if(argc != 2) {
+    std::cerr << "Usage: sais FILEPATH" << std::endl;
+    return 1;
+  }
   
-  const char* text = fd.data;
-  SA_IS sais(text);
+  double beg_t = gettime();
+  FileData fd(argv[1]);
+  if(!fd) {
+    std::cerr << "Can't open file: " << argv[1] << std::endl;
+    return 1;
+  }
+  std::cerr << "Read file data:\t\t took " << gettime()-beg_t << " sec" << std::endl;
+  
+  beg_t = gettime();
+  const char* text = fd.c_str();
+  SAIS sais(text);
+  std::cerr << "Construct Suffix-Array:\t took " << gettime()-beg_t << " sec" << std::endl;
 
-  /*
+  beg_t = gettime();
   for(unsigned i=0; i < sais.size(); i++)
     std::cout << sais.sa()[i] << std::endl;
-  */
+  std::cerr << "Print SA elements:\t took " << gettime()-beg_t << " sec" << std::endl;
+  
   return 0;
 }
-
