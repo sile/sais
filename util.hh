@@ -9,7 +9,7 @@ inline double gettime(){
 
 class FileData {
 public:
-  FileData(const char* filepath) : data(NULL) {
+  FileData(const char* filepath) : m_data(NULL) {
     unsigned long size;
     FILE* f = fopen(filepath, "r");
     if(!f)
@@ -22,30 +22,28 @@ public:
     if(fseek(f, 0, SEEK_SET)!=0)
       goto end;
     
-    data = new char[size+1];
-    if(fread(data, sizeof(char), size, f) != size) {
-      delete [] data;
-      data = NULL;
+    m_data = new char[size+1];
+    if(fread(m_data, sizeof(char), size, f) != size) {
+      delete [] m_data;
+      m_data = NULL;
       goto end;
     }
-    data[size] = '\0';
+    m_data[size] = '\0';
+    m_size = static_cast<unsigned>(size);
     
   end:
     fclose(f);
   }
 
   ~FileData() {
-    delete [] data;
+    delete [] m_data;
   }
 
-  operator bool() const {
-    return data!=NULL;
-  }
-
-  const char* c_str() const {
-    return data;
-  }
+  operator bool() const { return m_data!=NULL; }
+  const char* c_str() const { return m_data; }
+  unsigned size() const { return m_size; }
   
 private:
-  char* data;
+  char* m_data;
+  unsigned m_size;
 };
